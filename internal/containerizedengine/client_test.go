@@ -24,6 +24,7 @@ type (
 		getImageFunc         func(ctx context.Context, ref string) (containerd.Image, error)
 		contentStoreFunc     func() content.Store
 		containerServiceFunc func() containers.Store
+		installFunc          func(context.Context, containerd.Image, ...containerd.InstallOpts) error
 	}
 	fakeContainer struct {
 		idFunc         func() string
@@ -107,6 +108,12 @@ func (w *fakeContainerdClient) ContainerService() containers.Store {
 	return nil
 }
 func (w *fakeContainerdClient) Close() error {
+	return nil
+}
+func (w *fakeContainerdClient) Install(ctx context.Context, image containerd.Image, args ...containerd.InstallOpts) error {
+	if w.installFunc != nil {
+		return w.installFunc(ctx, image, args...)
+	}
 	return nil
 }
 

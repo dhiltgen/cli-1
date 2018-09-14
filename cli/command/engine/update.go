@@ -8,7 +8,6 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"golang.org/x/sys/unix"
 )
 
 func newUpdateCommand(dockerCli command.Cli) *cobra.Command {
@@ -33,7 +32,7 @@ func newUpdateCommand(dockerCli command.Cli) *cobra.Command {
 }
 
 func runUpdate(dockerCli command.Cli, options extendedEngineInitOptions) error {
-	if unix.Geteuid() != 0 {
+	if !isRoot() {
 		return errors.New("must be privileged to activate engine")
 	}
 	ctx := context.Background()

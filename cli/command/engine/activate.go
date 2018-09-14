@@ -26,6 +26,12 @@ type activateOptions struct {
 	sockPath       string
 }
 
+var (
+	isRoot = func() bool {
+		return unix.Geteuid() == 0
+	}
+)
+
 // newActivateCommand creates a new `docker engine activate` command
 func newActivateCommand(dockerCli command.Cli) *cobra.Command {
 	var options activateOptions
@@ -68,7 +74,7 @@ https://hub.docker.com/ then specify the file with the '--license' flag.
 }
 
 func runActivate(cli command.Cli, options activateOptions) error {
-	if unix.Geteuid() != 0 {
+	if !isRoot() {
 		return errors.New("must be privileged to activate engine")
 	}
 	ctx := context.Background()
