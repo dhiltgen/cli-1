@@ -25,6 +25,7 @@ type (
 		contentStoreFunc     func() content.Store
 		containerServiceFunc func() containers.Store
 		installFunc          func(context.Context, containerd.Image, ...containerd.InstallOpts) error
+		versionFunc          func(ctx context.Context) (containerd.Version, error)
 	}
 	fakeContainer struct {
 		idFunc         func() string
@@ -115,6 +116,12 @@ func (w *fakeContainerdClient) Install(ctx context.Context, image containerd.Ima
 		return w.installFunc(ctx, image, args...)
 	}
 	return nil
+}
+func (w *fakeContainerdClient) Version(ctx context.Context) (containerd.Version, error) {
+	if w.versionFunc != nil {
+		return w.versionFunc(ctx)
+	}
+	return containerd.Version{}, nil
 }
 
 func (c *fakeContainer) ID() string {

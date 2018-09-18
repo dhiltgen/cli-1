@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/containerd/containerd"
@@ -12,15 +15,19 @@ import (
 	"github.com/docker/cli/cli/command"
 	clitypes "github.com/docker/cli/types"
 	"github.com/docker/docker/api/types"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"gotest.tools/assert"
 )
 
-func TestActivateNoChange(t *testing.T) {
+func TestActivateConfigFailure(t *testing.T) {
 	ctx := context.Background()
 	registryPrefix := "registryprefixgoeshere"
 	image := &fakeImage{
 		nameFunc: func() string {
 			return registryPrefix + "/" + clitypes.EnterpriseEngineImage + ":engineversion"
+		},
+		configFunc: func(ctx context.Context) (ocispec.Descriptor, error) {
+			return ocispec.Descriptor{}, fmt.Errorf("config lookup failure")
 		},
 	}
 	container := &fakeContainer{
@@ -39,6 +46,9 @@ func TestActivateNoChange(t *testing.T) {
 			containersFunc: func(ctx context.Context, filters ...string) ([]containerd.Container, error) {
 				return []containerd.Container{container}, nil
 			},
+			getImageFunc: func(ctx context.Context, ref string) (containerd.Image, error) {
+				return image, nil
+			},
 		},
 	}
 	opts := clitypes.EngineInitOptions{
@@ -49,7 +59,7 @@ func TestActivateNoChange(t *testing.T) {
 	}
 
 	err := client.ActivateEngine(ctx, opts, command.NewOutStream(&bytes.Buffer{}), &types.AuthConfig{}, healthfnHappy)
-	assert.NilError(t, err)
+	assert.ErrorContains(t, err, "config lookup failure")
 }
 
 func TestActivateDoUpdateFail(t *testing.T) {
@@ -144,4 +154,42 @@ func TestDoUpdatePullFail(t *testing.T) {
 	err := client.DoUpdate(ctx, opts, command.NewOutStream(&bytes.Buffer{}), &types.AuthConfig{}, healthfnHappy)
 	assert.ErrorContains(t, err, "unable to pull")
 	assert.ErrorContains(t, err, "pull failure")
+}
+
+func TestGetCurrentRuntimeMetadataNotPresent(t *testing.T) {
+	ctx := context.Background()
+	tmpdir, err := ioutil.TempDir("", "docker-root")
+	assert.NilError(t, err)
+	defer os.RemoveAll(tmpdir)
+	client := baseClient{}
+	_, err = client.GetCurrentRuntimeMetadata(ctx, tmpdir)
+	assert.ErrorType(t, err, os.IsNotExist)
+}
+
+func TestGetCurrentRuntimeMetadataBadJson(t *testing.T) {
+	ctx := context.Background()
+	tmpdir, err := ioutil.TempDir("", "docker-root")
+	assert.NilError(t, err)
+	defer os.RemoveAll(tmpdir)
+	filename := filepath.Join(tmpdir, RuntimeMetadataName+".json")
+	err = ioutil.WriteFile(filename, []byte("not json"), 0644)
+	assert.NilError(t, err)
+	client := baseClient{}
+	_, err = client.GetCurrentRuntimeMetadata(ctx, tmpdir)
+	assert.ErrorContains(t, err, "malformed runtime metadata file")
+}
+
+func TestGetCurrentRuntimeMetadataHappyPath(t *testing.T) {
+	ctx := context.Background()
+	tmpdir, err := ioutil.TempDir("", "docker-root")
+	assert.NilError(t, err)
+	defer os.RemoveAll(tmpdir)
+	client := baseClient{}
+	metadata := RuntimeMetadata{Platform: "platformgoeshere"}
+	err = client.WriteRuntimeMetadata(ctx, tmpdir, &metadata)
+	assert.NilError(t, err)
+
+	res, err := client.GetCurrentRuntimeMetadata(ctx, tmpdir)
+	assert.NilError(t, err)
+	assert.Equal(t, res.Platform, "platformgoeshere")
 }

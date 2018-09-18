@@ -64,6 +64,10 @@ var (
 			NoNewPrivileges: false,
 		},
 	}
+
+	RuntimeMetadataName = "distribution_based_engine"
+
+	ReleaseNotePrefix = "https://docs.docker.com/releasenotes"
 )
 
 type baseClient struct {
@@ -80,4 +84,11 @@ type containerdClient interface {
 	ContentStore() content.Store
 	ContainerService() containers.Store
 	Install(context.Context, containerd.Image, ...containerd.InstallOpts) error
+	Version(ctx context.Context) (containerd.Version, error)
+}
+
+type RuntimeMetadata struct {
+	Platform             string `json:"platform"`
+	ContainerdMinVersion string `json:"containerd_min_version"`
+	Runtime              string `json:"runtime"`
 }

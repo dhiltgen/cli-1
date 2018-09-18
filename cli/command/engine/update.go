@@ -42,11 +42,8 @@ func runUpdate(dockerCli command.Cli, options extendedEngineInitOptions) error {
 	}
 	defer client.Close()
 	if options.EngineImage == "" || options.RegistryPrefix == "" {
-		if options.EngineImage == "" {
-			options.EngineImage = "docker/engine-community"
-		}
 		if options.RegistryPrefix == "" {
-			options.RegistryPrefix = "docker.io"
+			options.RegistryPrefix = "docker.io/store/docker"
 		}
 	}
 	authConfig, err := getRegistryAuth(dockerCli, options.RegistryPrefix)
