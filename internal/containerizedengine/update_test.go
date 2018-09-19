@@ -156,6 +156,65 @@ func TestDoUpdatePullFail(t *testing.T) {
 	assert.ErrorContains(t, err, "pull failure")
 }
 
+func TestActivateDoUpdateVerifyImageName(t *testing.T) {
+	ctx := context.Background()
+	registryPrefix := "registryprefixgoeshere"
+	image := &fakeImage{
+		nameFunc: func() string {
+			return registryPrefix + "/ce-engine:engineversion"
+		},
+	}
+	container := &fakeContainer{
+		imageFunc: func(context.Context) (containerd.Image, error) {
+			return image, nil
+		},
+	}
+	requestedImage := "unset"
+	client := baseClient{
+		cclient: &fakeContainerdClient{
+			containersFunc: func(ctx context.Context, filters ...string) ([]containerd.Container, error) {
+				return []containerd.Container{container}, nil
+			},
+			getImageFunc: func(ctx context.Context, ref string) (containerd.Image, error) {
+				requestedImage = ref
+				return nil, fmt.Errorf("something went wrong")
+
+			},
+		},
+	}
+	opts := clitypes.EngineInitOptions{
+		EngineVersion:  "engineversiongoeshere",
+		RegistryPrefix: "registryprefixgoeshere",
+		ConfigFile:     "/tmp/configfilegoeshere",
+		//EngineImage:    clitypes.EnterpriseEngineImage,
+	}
+
+	tmpdir, err := ioutil.TempDir("", "docker-root")
+	assert.NilError(t, err)
+	defer os.RemoveAll(tmpdir)
+	defaultDockerRoot = tmpdir
+	metadata := RuntimeMetadata{Platform: "platformgoeshere"}
+	err = client.WriteRuntimeMetadata(ctx, tmpdir, &metadata)
+	assert.NilError(t, err)
+
+	err = client.ActivateEngine(ctx, opts, command.NewOutStream(&bytes.Buffer{}), &types.AuthConfig{}, healthfnHappy)
+	assert.ErrorContains(t, err, "check for image")
+	assert.ErrorContains(t, err, "something went wrong")
+	expectedImage := fmt.Sprintf("%s/%s:%s", opts.RegistryPrefix, "engine-community", opts.EngineVersion)
+	assert.Assert(t, requestedImage == expectedImage, "%s != %s", requestedImage, expectedImage)
+
+	// Redo with enterprise set
+	metadata = RuntimeMetadata{Platform: "Docker Engine - Enterprise"}
+	err = client.WriteRuntimeMetadata(ctx, tmpdir, &metadata)
+	assert.NilError(t, err)
+
+	err = client.ActivateEngine(ctx, opts, command.NewOutStream(&bytes.Buffer{}), &types.AuthConfig{}, healthfnHappy)
+	assert.ErrorContains(t, err, "check for image")
+	assert.ErrorContains(t, err, "something went wrong")
+	expectedImage = fmt.Sprintf("%s/%s:%s", opts.RegistryPrefix, "engine-enterprise", opts.EngineVersion)
+	assert.Assert(t, requestedImage == expectedImage, "%s != %s", requestedImage, expectedImage)
+}
+
 func TestGetCurrentRuntimeMetadataNotPresent(t *testing.T) {
 	ctx := context.Background()
 	tmpdir, err := ioutil.TempDir("", "docker-root")
@@ -192,4 +251,17 @@ func TestGetCurrentRuntimeMetadataHappyPath(t *testing.T) {
 	res, err := client.GetCurrentRuntimeMetadata(ctx, tmpdir)
 	assert.NilError(t, err)
 	assert.Equal(t, res.Platform, "platformgoeshere")
+}
+
+func TestGetReleaseNotesURL(t *testing.T) {
+	client := baseClient{}
+	imageName := "bogus image name #$%&@!"
+	url := client.GetReleaseNotesURL(imageName)
+	assert.Equal(t, url, ReleaseNotePrefix+"/")
+	imageName = "foo.bar/valid/repowithouttag"
+	url = client.GetReleaseNotesURL(imageName)
+	assert.Equal(t, url, ReleaseNotePrefix+"/")
+	imageName = "foo.bar/valid/repowithouttag:tag123"
+	url = client.GetReleaseNotesURL(imageName)
+	assert.Equal(t, url, ReleaseNotePrefix+"/tag123")
 }

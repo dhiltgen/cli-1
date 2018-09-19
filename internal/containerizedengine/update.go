@@ -92,10 +92,12 @@ func (c *baseClient) DoUpdate(ctx context.Context, opts clitypes.EngineInitOptio
 	return c.WriteRuntimeMetadata(ctx, "", newMetadata)
 }
 
+var defaultDockerRoot = "/var/lib/docker"
+
 // GetCurrentRuntimeMetadata loads the current daemon runtime metadata information from the local host
 func (c *baseClient) GetCurrentRuntimeMetadata(ctx context.Context, dockerRoot string) (*RuntimeMetadata, error) {
 	if dockerRoot == "" {
-		dockerRoot = "/var/lib/docker"
+		dockerRoot = defaultDockerRoot
 	}
 	filename := filepath.Join(dockerRoot, RuntimeMetadataName+".json")
 
@@ -113,7 +115,7 @@ func (c *baseClient) GetCurrentRuntimeMetadata(ctx context.Context, dockerRoot s
 
 func (c *baseClient) WriteRuntimeMetadata(ctx context.Context, dockerRoot string, metadata *RuntimeMetadata) error {
 	if dockerRoot == "" {
-		dockerRoot = "/var/lib/docker"
+		dockerRoot = defaultDockerRoot
 	}
 	filename := filepath.Join(dockerRoot, RuntimeMetadataName+".json")
 
